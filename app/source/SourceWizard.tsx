@@ -111,7 +111,7 @@ type TransferItem = DataTransferItem & {
 /** 보안 프로그램이 entry를 비워도 files / handle은 남는 경우가 있다. */
 async function collectDropped(dt: DataTransfer): Promise<Picked[]> {
   const out: Picked[] = [];
-  const items = [...dt.items] as TransferItem[];
+  const items = Array.from(dt.items) as TransferItem[];
 
   for (const item of items) {
     if (typeof item.getAsFileSystemHandle !== "function") continue;
@@ -143,7 +143,7 @@ async function collectDropped(dt: DataTransfer): Promise<Picked[]> {
   }
   if (out.length) return out;
 
-  for (const file of [...dt.files]) {
+  for (const file of Array.from(dt.files)) {
     out.push({ path: filePathOf(file), file });
   }
   return out;
@@ -216,7 +216,7 @@ export default function SourceWizard() {
       const map = new Map(held.map((f) => [f.path, f]));
       for (const file of sources) map.set(file.path, file);
       const names = roots.includes("선택한 파일") ? roots : [...roots, "선택한 파일"];
-      publish([...map.values()], names);
+      publish(Array.from(map.values()), names);
     } catch (err) {
       setError(err instanceof Error ? err.message : "파일을 읽지 못했습니다.");
     } finally {
