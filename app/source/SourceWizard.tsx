@@ -414,7 +414,7 @@ export default function SourceWizard() {
               <FolderUp className="h-4 w-4 text-accent" /> 개발 폴더 올리기
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              회사 보안 프로그램이 파일·폴더 창을 가로챕니다. 첨부 창은 쓰지 말고, 폴더 전체 경로를 넣거나 탐색기에서 아래 칸에 놓으세요. 여러 폴더는 줄바꿈으로 넣으면 됩니다.
+              회사 보안 프로그램이 파일·폴더 창을 가로챕니다. 첨부 창 대신 탐색기에서 아래 칸에 놓거나 목록을 붙여 넣으세요. 폴더 경로 읽기는 이 PC에서 로컬로 띄울 때만 되고, 온라인 배포본에서는 쓸 수 없습니다.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void pickFile()}>
