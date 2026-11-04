@@ -28,3 +28,6 @@ next-env.d.ts
 # local scratch / samples
 _tmp_*
 *.log
+
+# usage analytics (local)
+/data/

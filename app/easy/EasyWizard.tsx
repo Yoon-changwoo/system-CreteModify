@@ -378,6 +378,7 @@ export default function EasyWizard() {
         {step === 2 && <StepQuestions easy={easy} setEasy={setEasy} found={found} onBack={() => setStep(1)} onNext={() => setStep(3)} />}
         {step === 3 && (
           <ResultView
+            channel="easy"
             input={input}
             setInput={(p) => setOverrides((prev) => ({ ...prev, ...p }))}
             assumptions={conversion.assumptions}

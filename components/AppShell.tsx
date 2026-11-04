@@ -9,6 +9,7 @@ const NAV = [
   { href: "/expert", label: "신규·IT" },
   { href: "/source", label: "소스 분석" },
   { href: "/cbo", label: "SAP CBO" },
+  { href: "/usage", label: "사용량" },
 ];
 
 export default function AppShell({ children }: { children: React.ReactNode }) {

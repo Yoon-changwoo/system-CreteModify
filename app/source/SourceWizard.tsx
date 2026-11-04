@@ -509,6 +509,7 @@ export default function SourceWizard() {
       ) : (
         analysis && (
           <ResultView
+            channel="source"
             input={input}
             setInput={(p) => setOverrides((prev) => ({ ...prev, ...p }))}
             assumptions={analysis.assumptions}

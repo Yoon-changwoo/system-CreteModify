@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Check, Cloud, Copy, Info, Landmark, Printer, RotateCcw, Store, Users, MessageSquareText } from "lucide-react";
 import {
   ENV_LABELS,
@@ -20,6 +20,7 @@ import {
   type EstimateResult,
   type Stack,
 } from "@/lib/estimate";
+import type { UsageChannel } from "@/lib/usage";
 import { Card, Field, NumberInput, Stat } from "./ui";
 import SourcesPanel from "./SourcesPanel";
 
@@ -57,15 +58,40 @@ interface Props {
   /** 현업 모드에서 넘어온 산정 전제 (있으면 상단에 표시) */
   assumptions?: string[];
   backLabel?: string;
+  /** 사용량 집계 채널. 없으면 기록하지 않음 */
+  channel?: UsageChannel;
 }
 
-export default function ResultView({ input, setInput, onBack, onReset, assumptions, backLabel = "입력 수정" }: Props) {
+export default function ResultView({ input, setInput, onBack, onReset, assumptions, backLabel = "입력 수정", channel }: Props) {
   const rJava = useMemo(() => estimate({ ...input, stack: "java" }), [input]);
   const rSap = useMemo(() => estimate({ ...input, stack: "sap" }), [input]);
   const r = (input.stack ?? "java") === "sap" ? rSap : rJava;
   const [copied, setCopied] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const grades = r.stack === "sap" ? MARKET_GRADE_SAP : MARKET_GRADE;
+
+  useEffect(() => {
+    if (!channel) return;
+    const key = `usage:${channel}:${input.title || ""}:${Math.round(r.fp)}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      /* private mode */
+    }
+    void fetch("/api/usage/track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        channel,
+        stack: r.stack,
+        title: input.title || "",
+        fp: r.fp,
+      }),
+    }).catch(() => {
+      /* 집계 실패해도 산정 화면은 유지 */
+    });
+  }, [channel, input.title, r.fp, r.stack]);
 
   const copy = async () => {
     try {

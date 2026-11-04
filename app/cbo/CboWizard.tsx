@@ -242,6 +242,7 @@ export default function CboWizard() {
 
       {step === 3 && (
         <ResultView
+          channel="cbo"
           input={input}
           setInput={(p) => setOverrides((prev) => ({ ...prev, ...p, stack: "sap" }))}
           assumptions={conversion.assumptions}

@@ -182,6 +182,7 @@ export default function ExpertWizard() {
           <StepInput input={input} setInput={setInput} onNext={() => setStep(2)} />
         ) : (
           <ResultView
+            channel="expert"
             input={input}
             setInput={setInput}
             onBack={() => setStep(1)}
