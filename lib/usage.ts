@@ -23,13 +23,69 @@ export interface UsageEvent {
   userId: string | null;
 }
 
+export type SurveyMilestone = 10 | 50 | 100;
+
+export const SURVEY_MILESTONES: SurveyMilestone[] = [10, 50, 100];
+
+export interface SurveyResponse {
+  id: string;
+  at: string;
+  milestone: SurveyMilestone;
+  visitorKey: string;
+  ipHint: string;
+  /** 1(매우 불만족) ~ 5(매우 만족) */
+  satisfaction: number;
+  satisfiedPoints: string[];
+  dissatisfiedReasons: string[];
+  neededFeatures: string[];
+  recommend: "yes" | "no" | "maybe";
+  comment: string;
+  userId: string | null;
+}
+
 export interface UsageStats {
   total: number;
   byChannel: Record<string, number>;
   byVisitor: { visitorKey: string; ipHint: string; count: number; lastAt: string }[];
   recent: UsageEvent[];
+  surveys: SurveyResponse[];
   durable: boolean;
   note: string;
+}
+
+export const SATISFIED_OPTIONS = [
+  "산정 결과가 이해하기 쉽다",
+  "입력 방식이 간단하다",
+  "공공 표준·시세 비교가 유용하다",
+  "SAP ERP/SCM/FCM·CBO 예시가 우리 업무와 맞다",
+  "화면·문구가 현업/IT 모두 쓰기 좋다",
+  "공수·금액 근거가 설득력 있다",
+];
+
+export const DISSATISFIED_OPTIONS = [
+  "입력 항목이 많거나 어렵다",
+  "산정 금액·공수가 체감과 다르다",
+  "우리 회사 업무 유형이 부족하다",
+  "결과 설명이 부족하다",
+  "속도·오류 등 사용성이 불편하다",
+  "보안(파일 업로드 등) 때문에 쓰기 어렵다",
+];
+
+export const NEEDED_FEATURE_OPTIONS = [
+  "로그인·개인별 견적 이력",
+  "견적 저장·공유·PDF 내보내기",
+  "부서/프로젝트별 집계 대시보드",
+  "더 많은 SAP·CRM 템플릿",
+  "엑셀 업로드로 일괄 산정",
+  "관리자 승인·버전 관리",
+];
+
+/** 제출하지 않은 가장 낮은 마일스톤 */
+export function pendingSurveyMilestone(count: number, done: SurveyMilestone[]): SurveyMilestone | null {
+  for (const m of SURVEY_MILESTONES) {
+    if (count >= m && !done.includes(m)) return m;
+  }
+  return null;
 }
 
 export const CHANNEL_LABEL: Record<UsageChannel, string> = {

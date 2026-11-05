@@ -20,9 +20,10 @@ import {
   type EstimateResult,
   type Stack,
 } from "@/lib/estimate";
-import type { UsageChannel } from "@/lib/usage";
+import type { SurveyMilestone, UsageChannel } from "@/lib/usage";
 import { Card, Field, NumberInput, Stat } from "./ui";
 import SourcesPanel from "./SourcesPanel";
+import SurveyModal from "./SurveyModal";
 
 export function buildSummary(input: EstimateInput, r: EstimateResult, assumptions?: string[]): string {
   const lines = [
@@ -68,6 +69,7 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
   const r = (input.stack ?? "java") === "sap" ? rSap : rJava;
   const [copied, setCopied] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
+  const [survey, setSurvey] = useState<{ milestone: SurveyMilestone; count: number } | null>(null);
   const grades = r.stack === "sap" ? MARKET_GRADE_SAP : MARKET_GRADE;
 
   useEffect(() => {
@@ -88,9 +90,22 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
         title: input.title || "",
         fp: r.fp,
       }),
-    }).catch(() => {
-      /* 집계 실패해도 산정 화면은 유지 */
-    });
+    })
+      .then(async (res) => {
+        if (!res.ok) return;
+        const data = (await res.json()) as { count?: number; pendingSurvey?: SurveyMilestone | null };
+        if (!data.pendingSurvey || typeof data.count !== "number") return;
+        try {
+          const skip = sessionStorage.getItem(`survey-skip:${data.pendingSurvey}`);
+          if (skip) return;
+        } catch {
+          /* private mode */
+        }
+        setSurvey({ milestone: data.pendingSurvey, count: data.count });
+      })
+      .catch(() => {
+        /* 집계 실패해도 산정 화면은 유지 */
+      });
   }, [channel, input.title, r.fp, r.stack]);
 
   const copy = async () => {
@@ -108,6 +123,21 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
 
   return (
     <div className="space-y-6">
+      {survey && (
+        <SurveyModal
+          milestone={survey.milestone}
+          count={survey.count}
+          onClose={() => {
+            try {
+              sessionStorage.setItem(`survey-skip:${survey.milestone}`, "1");
+            } catch {
+              /* private mode */
+            }
+            setSurvey(null);
+          }}
+          onSubmitted={() => setSurvey(null)}
+        />
+      )}
       <Card>
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>

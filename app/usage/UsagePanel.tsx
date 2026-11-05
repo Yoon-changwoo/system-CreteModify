@@ -51,7 +51,7 @@ export default function UsagePanel() {
           <div>
             <h1 className="text-2xl font-bold">견적 산출 사용량</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-              결과 화면이 열릴 때 1건으로 셉니다. 같은 브라우저 세션에서 같은 결과를 새로고침해도 중복 집계하지 않습니다. 나중에 로그인하면 userId 기준으로 바꿀 수 있게 구조를 남겨 두었습니다.
+              결과 화면이 열릴 때 1건으로 셉니다. 같은 브라우저 세션에서 같은 결과를 새로고침해도 중복 집계하지 않습니다. 설문은 동일 사용자(IP) 기준 10·50·100건 도달 시에만 표시됩니다.
             </p>
           </div>
           <button type="button" className="btn-ghost" disabled={busy} onClick={() => void load()}>
@@ -128,6 +128,40 @@ export default function UsagePanel() {
                       </span>
                     </div>
                     <span className="text-xs text-muted-foreground">{fmtAt(e.at)}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
+
+          <Card>
+            <h2 className="text-sm font-semibold">만족도 설문 응답 ({stats.surveys.length}건)</h2>
+            <p className="mt-1 text-xs text-muted-foreground">동일 사용자(IP)가 10·50·100건 도달 시 팝업으로 수집합니다.</p>
+            {stats.surveys.length === 0 ? (
+              <p className="mt-3 text-sm text-muted-foreground">아직 제출된 설문이 없습니다.</p>
+            ) : (
+              <ul className="mt-3 space-y-3">
+                {stats.surveys.map((s) => (
+                  <li key={s.id} className="rounded-lg border border-border p-3 text-sm">
+                    <div className="flex flex-wrap items-baseline justify-between gap-2">
+                      <span className="font-medium">
+                        {s.milestone}건 구간 · 만족도 {s.satisfaction}/5 · 추천{" "}
+                        {s.recommend === "yes" ? "함" : s.recommend === "no" ? "안 함" : "보통"}
+                      </span>
+                      <span className="text-xs text-muted-foreground">
+                        {s.ipHint} · {fmtAt(s.at)}
+                      </span>
+                    </div>
+                    {s.satisfiedPoints.length > 0 && (
+                      <p className="mt-2 text-xs text-muted-foreground">만족: {s.satisfiedPoints.join(" · ")}</p>
+                    )}
+                    {s.dissatisfiedReasons.length > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">불만족: {s.dissatisfiedReasons.join(" · ")}</p>
+                    )}
+                    {s.neededFeatures.length > 0 && (
+                      <p className="mt-1 text-xs text-muted-foreground">필요 기능: {s.neededFeatures.join(" · ")}</p>
+                    )}
+                    {s.comment && <p className="mt-2 text-sm">{s.comment}</p>}
                   </li>
                 ))}
               </ul>

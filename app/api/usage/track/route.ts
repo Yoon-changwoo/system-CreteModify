@@ -26,18 +26,19 @@ export async function POST(req: Request) {
   const stack = body.stack === "sap" ? "sap" : "java";
   const fp = typeof body.fp === "number" && Number.isFinite(body.fp) ? Math.max(0, Math.round(body.fp)) : 0;
   const title = (body.title || "").trim().slice(0, 120);
+  const visitorKey = visitorKeyFromIp(ip);
 
-  await appendUsage({
+  const { count, pendingSurvey } = await appendUsage({
     id: newEventId(),
     at: new Date().toISOString(),
     channel,
     stack,
     title,
     fp,
-    visitorKey: visitorKeyFromIp(ip),
+    visitorKey,
     ipHint: maskIp(ip),
     userId: null,
   });
 
-  return NextResponse.json({ ok: true });
+  return NextResponse.json({ ok: true, count, pendingSurvey });
 }
