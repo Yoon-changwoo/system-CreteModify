@@ -472,6 +472,9 @@ export default function SourceWizard() {
             <p className="mt-1 text-sm text-muted-foreground">
               프로젝트 폴더를 <strong className="font-medium text-foreground">zip 1개</strong>로 묶어 올려 주세요. 브라우저에서 압축을 풀어 소스를 분석합니다.
             </p>
+            <p className="mt-2 rounded-md border border-border bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+              소스는 <strong className="font-medium text-foreground">견적 산정 시에만</strong> 쓰이며, 서버에 업로드·저장되지 않습니다. 분석은 이 브라우저에서만 이뤄집니다.
+            </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void pickFile()}>
                 <FileUp className="h-4 w-4" /> 압축 1개 올리기

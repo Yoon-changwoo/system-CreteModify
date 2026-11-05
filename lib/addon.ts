@@ -34,9 +34,9 @@ export const KIND_OPTIONS: (Option<AddonKind> & { example: string; title: string
   {
     value: "api",
     label: "REST·내부 API",
-    example: "조회/명령 API, BFF, 서비스 레이어",
+    example: "조회/명령 API 엔드포인트, BFF, 서비스 레이어",
     title: "REST·내부 API 추가",
-    desc: "조회·명령용 REST/내부 API를 추가한다. 멱등·검증·트랜잭션·감사 로그를 포함한다.",
+    desc: "기존 테이블·서비스를 쓰는 조회·명령용 REST/내부 API를 추가한다. 새 테이블·외부 연계는 ‘DB 스키마’·‘외부 연계’를 따로 고른다.",
   },
   {
     value: "report",
@@ -138,7 +138,8 @@ export const DEFAULT_ADDON: AddonInput = {
 
 export const KIND_PRESETS: Record<AddonKind, Partial<AddonInput>> = {
   screen: { complexity: "mid", objectCount: 3, hasAuth: true },
-  api: { complexity: "mid", objectCount: 3, hasAuth: true },
+  /** 단순 API 1개 제공이 기본 시나리오 — 과대 산정 방지 */
+  api: { complexity: "light", objectCount: 1, hasAuth: false, hasInterface: false, hasBatch: false },
   report: { complexity: "mid", objectCount: 2, hasInterface: false, hasBatch: false },
   interface: { complexity: "heavy", objectCount: 4, hasInterface: true, hasBatch: true },
   workflow: { complexity: "heavy", objectCount: 3, hasAuth: true },
@@ -146,9 +147,14 @@ export const KIND_PRESETS: Record<AddonKind, Partial<AddonInput>> = {
   schema: { complexity: "mid", objectCount: 2, hasAuth: true },
 };
 
+/**
+ * 유형별 FP 시드. api는 ‘엔드포인트 단위’로 얇게 잡고,
+ * 새 테이블·외부시스템은 schema / interface 유형·옵션으로만 올린다.
+ * (구버전 api 시드 ILF1·EIF1·EI5…는 단순 API 1개에도 ~34FP·1.7M/M·~1,500만 원이 나와 과다했음)
+ */
 const KIND_BASE: Record<AddonKind, FunctionCounts> = {
   screen: { ilf: 2, eif: 1, ei: 5, eo: 1, eq: 3 },
-  api: { ilf: 1, eif: 1, ei: 5, eo: 2, eq: 2 },
+  api: { ilf: 0, eif: 0, ei: 2, eo: 0, eq: 2 },
   report: { ilf: 1, eif: 2, ei: 1, eo: 3, eq: 3 },
   interface: { ilf: 2, eif: 3, ei: 4, eo: 3, eq: 2 },
   workflow: { ilf: 2, eif: 1, ei: 5, eo: 2, eq: 3 },
