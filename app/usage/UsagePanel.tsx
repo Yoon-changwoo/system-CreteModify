@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { Home, RefreshCw } from "lucide-react";
 import { CHANNEL_LABEL, type UsageStats } from "@/lib/usage";
-import AppShell from "@/components/AppShell";
+import AppShell, { USAGE_ADMIN_KEY } from "@/components/AppShell";
 import { Card } from "@/components/ui";
 
 function fmtAt(iso: string) {
@@ -19,6 +19,7 @@ export default function UsagePanel() {
   const [stats, setStats] = useState<UsageStats | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [allowed, setAllowed] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -35,14 +36,45 @@ export default function UsagePanel() {
   }, []);
 
   useEffect(() => {
-    void load();
+    try {
+      if (new URLSearchParams(window.location.search).get("admin") === "1") {
+        localStorage.setItem(USAGE_ADMIN_KEY, "1");
+      }
+      const ok = localStorage.getItem(USAGE_ADMIN_KEY) === "1";
+      setAllowed(ok);
+      if (ok) void load();
+    } catch {
+      setAllowed(false);
+    }
   }, [load]);
+
+  if (allowed === null) {
+    return (
+      <AppShell>
+        <p className="text-sm text-muted-foreground">확인 중…</p>
+      </AppShell>
+    );
+  }
+
+  if (!allowed) {
+    return (
+      <AppShell>
+        <div className="rounded-xl border border-border bg-card p-6 text-sm">
+          <p className="font-medium">사용량 화면은 관리자만 볼 수 있습니다.</p>
+          <p className="mt-2 text-muted-foreground">접근 권한이 없으면 메뉴에도 표시되지 않습니다.</p>
+          <Link href="/" className="btn-ghost mt-4 inline-flex">
+            <Home className="h-4 w-4" /> 처음 화면
+          </Link>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell>
       <header className="mb-8">
         <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>테스트용 · 로그인 전 IP(해시) 기준</span>
+          <span>관리자 · 로그인 전 IP(해시) 기준</span>
           <Link href="/" className="inline-flex items-center gap-1 hover:text-foreground">
             <Home className="h-3.5 w-3.5" /> 처음 화면
           </Link>

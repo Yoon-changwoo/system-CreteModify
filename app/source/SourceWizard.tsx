@@ -1,15 +1,16 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
-import { Calculator, FileUp, FolderUp, Home, ListTree } from "lucide-react";
+import { Calculator, FileUp, Home, ListTree } from "lucide-react";
 import { DEFAULT_INPUT, type EstimateInput } from "@/lib/estimate";
 import { analyzeSources, contentPriority, isNoisePath, parsePathList, type SourceAnalysis, type SourceFileIn } from "@/lib/sourceAnalyze";
-import AppShell from "@/components/AppShell";
+import AppShell, { USAGE_ADMIN_KEY } from "@/components/AppShell";
 import ResultView from "@/components/ResultView";
 import { Card, Field, inputCls } from "@/components/ui";
 
 const TEXT_EXT = /\.(java|kt|xml|jsp|js|jsx|ts|tsx|vue|sql|yml|yaml|properties|html)$/i;
+const ZIP_EXT = /\.(zip)$/i;
 const MAX_FILES = 5000;
 const MAX_READ = 600;
 const MAX_BYTES = 120_000;
@@ -100,6 +101,33 @@ function mergeRoot(prev: SourceFileIn[], root: string, next: SourceFileIn[]): So
   return [...kept, ...next].slice(0, MAX_FILES);
 }
 
+async function expandZip(file: File): Promise<Picked[]> {
+  const JSZip = (await import("jszip")).default;
+  const zip = await JSZip.loadAsync(file);
+  const out: Picked[] = [];
+  const names = Object.keys(zip.files);
+  for (const name of names) {
+    if (out.length >= MAX_FILES) break;
+    const entry = zip.files[name];
+    if (!entry || entry.dir) continue;
+    const path = name.replace(/\\/g, "/").replace(/^\.\//, "");
+    if (!path || isNoisePath(path)) continue;
+    const blob = await entry.async("blob");
+    const base = path.split("/").pop() || path;
+    out.push({ path, file: new File([blob], base) });
+  }
+  return out;
+}
+
+async function pickedFromUpload(file: File): Promise<{ root: string; picked: Picked[] }> {
+  if (ZIP_EXT.test(file.name)) {
+    const picked = await expandZip(file);
+    const root = file.name.replace(/\.zip$/i, "") || "source.zip";
+    return { root, picked: picked.map((p) => ({ ...p, path: `${root}/${p.path}` })) };
+  }
+  return { root: "선택한 파일", picked: [{ path: filePathOf(file), file }] };
+}
+
 function filePathOf(file: File): string {
   return ((file as File & { webkitRelativePath?: string }).webkitRelativePath || file.name).replace(/\\/g, "/");
 }
@@ -160,6 +188,19 @@ function groupByRoot(picked: Picked[]): Map<string, Picked[]> {
   return groups;
 }
 
+async function expandDropped(picked: Picked[]): Promise<Picked[]> {
+  const out: Picked[] = [];
+  for (const it of picked) {
+    if (ZIP_EXT.test(it.file.name) || ZIP_EXT.test(it.path)) {
+      const { picked: inner } = await pickedFromUpload(it.file);
+      out.push(...inner);
+    } else {
+      out.push(it);
+    }
+  }
+  return out;
+}
+
 export default function SourceWizard() {
   const [step, setStep] = useState<1 | 2>(1);
   const [title, setTitle] = useState("");
@@ -173,7 +214,20 @@ export default function SourceWizard() {
   const [roots, setRoots] = useState<string[]>([]);
   const [over, setOver] = useState(false);
   const [folderPath, setFolderPath] = useState("");
+  const [showDev, setShowDev] = useState(false);
   const folderPathRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("admin") === "1") {
+        localStorage.setItem(USAGE_ADMIN_KEY, "1");
+      }
+      setShowDev(localStorage.getItem(USAGE_ADMIN_KEY) === "1");
+    } catch {
+      /* ignore */
+    }
+  }, []);
 
   const input: EstimateInput = useMemo(() => {
     if (!analysis) return { ...DEFAULT_INPUT, title, mode: "detail", inputCoverage: 1 };
@@ -191,7 +245,7 @@ export default function SourceWizard() {
 
   const publish = (files: SourceFileIn[], rootNames: string[]) => {
     if (!files.length) {
-      setError("폴더에서 분석할 소스를 찾지 못했습니다. 깃에서 받은 프로젝트 폴더를 선택해 주세요.");
+      setError("분석할 소스를 찾지 못했습니다. 프로젝트 전체를 zip으로 묶어 올려 주세요.");
       return;
     }
     setHeld(files);
@@ -207,14 +261,23 @@ export default function SourceWizard() {
     publish(merged, names);
   };
 
-  const addLooseFile = async (picked: Picked[]) => {
-    if (!picked.length) return;
+  const ingestUpload = async (file: File) => {
     setError("");
-    setBusy("파일을 읽는 중…");
+    const isZip = ZIP_EXT.test(file.name);
+    setBusy(isZip ? "압축 파일을 푸는 중…" : "파일을 읽는 중…");
     try {
+      const { root, picked } = await pickedFromUpload(file);
+      if (!picked.length) {
+        setError(isZip ? "zip 안에서 분석할 소스를 찾지 못했습니다." : "분석할 파일을 찾지 못했습니다.");
+        return;
+      }
+      if (isZip) {
+        await addPicked(root, picked);
+        return;
+      }
       const sources = await toSources(picked);
       const map = new Map(held.map((f) => [f.path, f]));
-      for (const file of sources) map.set(file.path, file);
+      for (const src of sources) map.set(src.path, src);
       const names = roots.includes("선택한 파일") ? roots : [...roots, "선택한 파일"];
       publish(Array.from(map.values()), names);
     } catch (err) {
@@ -226,49 +289,37 @@ export default function SourceWizard() {
 
   const pickFile = async () => {
     setError("");
-    const openFile = (window as Window & { showOpenFilePicker?: (opts?: { multiple?: boolean }) => Promise<{ getFile: () => Promise<File> }[]> }).showOpenFilePicker;
+    const openFile = (
+      window as Window & {
+        showOpenFilePicker?: (opts?: {
+          multiple?: boolean;
+          types?: { description: string; accept: Record<string, string[]> }[];
+        }) => Promise<{ getFile: () => Promise<File> }[]>;
+      }
+    ).showOpenFilePicker;
     if (!openFile) {
-      setError("이 브라우저는 파일 창을 열 수 없습니다. 파일을 아래 칸에 놓거나 경로를 붙여 넣으세요.");
+      fileInputRef.current?.click();
       return;
     }
     try {
-      const handles = await openFile({ multiple: false });
+      const handles = await openFile({
+        multiple: false,
+        types: [
+          {
+            description: "소스 압축(zip)",
+            accept: {
+              "application/zip": [".zip"],
+              "application/x-zip-compressed": [".zip"],
+            },
+          },
+        ],
+      });
       const file = await handles[0].getFile();
-      await addLooseFile([{ path: file.name, file }]);
+      await ingestUpload(file);
     } catch (err) {
       const name = err instanceof DOMException ? err.name : "";
       if (name === "AbortError") return;
-      setError("파일 창을 열지 못했습니다. 탐색기에서 파일을 아래 칸에 놓거나 경로를 붙여 넣으세요.");
-    }
-  };
-
-  const pickFolder = async () => {
-    setError("");
-    const openPicker = (window as Window & { showDirectoryPicker?: () => Promise<FsNode & { name: string }> }).showDirectoryPicker;
-    if (!openPicker) {
-      folderPathRef.current?.focus();
-      setError("이 브라우저는 폴더 창을 열 수 없습니다. 폴더 경로를 넣고 경로에서 읽기를 누르거나, 폴더를 아래 칸에 놓으세요.");
-      return;
-    }
-    let dir: FsNode & { name: string };
-    try {
-      dir = await openPicker();
-    } catch (err) {
-      const name = err instanceof DOMException ? err.name : "";
-      if (name === "AbortError") return;
-      folderPathRef.current?.focus();
-      setError("폴더 창을 열지 못했습니다. 폴더 전체 경로를 넣고 경로에서 읽기를 누르세요.");
-      return;
-    }
-    setBusy(`${dir.name} 폴더를 읽는 중…`);
-    try {
-      const picked: Picked[] = [];
-      await walkHandle(dir, dir.name, picked);
-      await addPicked(dir.name, picked);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "폴더를 읽지 못했습니다.");
-    } finally {
-      setBusy("");
+      fileInputRef.current?.click();
     }
   };
 
@@ -279,9 +330,14 @@ export default function SourceWizard() {
     setError("");
     setBusy("놓은 항목을 읽는 중…");
     try {
-      const picked = await collectDropped(event.dataTransfer);
+      const raw = await collectDropped(event.dataTransfer);
+      if (!raw.length) {
+        setError("놓은 파일을 읽지 못했습니다. zip 1개를 이 칸에 놓거나 압축 올리기 버튼을 사용하세요.");
+        return;
+      }
+      const picked = await expandDropped(raw);
       if (!picked.length) {
-        setError("놓은 파일·폴더를 읽지 못했습니다. 탐색기에서 폴더를 이 칸에 놓거나, 아래 목록 붙여넣기를 사용하세요.");
+        setError("분석할 소스를 찾지 못했습니다. 프로젝트 전체를 zip으로 묶어 올려 주세요.");
         return;
       }
       let files = held;
@@ -293,7 +349,7 @@ export default function SourceWizard() {
       }
       publish(files, names);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "폴더를 읽지 못했습니다.");
+      setError(err instanceof Error ? err.message : "파일을 읽지 못했습니다.");
     } finally {
       setBusy("");
     }
@@ -411,17 +467,14 @@ export default function SourceWizard() {
 
           <Card>
             <div className="flex items-center gap-2 text-sm font-semibold">
-              <FolderUp className="h-4 w-4 text-accent" /> 개발 폴더 올리기
+              <FileUp className="h-4 w-4 text-accent" /> 소스 압축 올리기
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              회사 보안 프로그램이 파일·폴더 창을 가로챕니다. 첨부 창 대신 탐색기에서 아래 칸에 놓거나 목록을 붙여 넣으세요. 폴더 경로 읽기는 이 PC에서 로컬로 띄울 때만 되고, 온라인 배포본에서는 쓸 수 없습니다.
+              프로젝트 폴더를 <strong className="font-medium text-foreground">zip 1개</strong>로 묶어 올려 주세요. 브라우저에서 압축을 풀어 소스를 분석합니다.
             </p>
             <div className="mt-3 flex flex-wrap gap-2">
               <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void pickFile()}>
-                <FileUp className="h-4 w-4" /> 파일 추가
-              </button>
-              <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void pickFolder()}>
-                <FolderUp className="h-4 w-4" /> 폴더 선택
+                <FileUp className="h-4 w-4" /> 압축 1개 올리기
               </button>
               {roots.length > 0 && (
                 <button type="button" className="btn-ghost" disabled={!!busy} onClick={clearFolders}>
@@ -429,19 +482,34 @@ export default function SourceWizard() {
                 </button>
               )}
             </div>
-            <div className="mt-3 space-y-2">
-              <textarea
-                ref={folderPathRef}
-                className={`${inputCls} font-mono text-xs`}
-                rows={2}
-                value={folderPath}
-                placeholder={"C:\\work\\EVOC_API\nC:\\work\\EVOC_FE"}
-                onChange={(e) => setFolderPath(e.target.value)}
-              />
-              <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void readLocalPaths(folderPath.split(/\r?\n/))}>
-                경로에서 읽기
-              </button>
-            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".zip,application/zip,application/x-zip-compressed"
+              className="hidden"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (file) void ingestUpload(file);
+              }}
+            />
+            {showDev && (
+              <div className="mt-3 space-y-2 rounded-md border border-border bg-muted/40 p-3">
+                <p className="text-xs font-medium text-foreground">개발자 전용 · 경로에서 읽기</p>
+                <p className="text-xs text-muted-foreground">로컬에서 이 프로그램을 띄운 PC의 폴더 경로만 읽을 수 있습니다. 일반 사용자는 zip 업로드를 쓰세요.</p>
+                <textarea
+                  ref={folderPathRef}
+                  className={`${inputCls} font-mono text-xs`}
+                  rows={2}
+                  value={folderPath}
+                  placeholder={"C:\\work\\EVOC_API\nC:\\work\\EVOC_FE"}
+                  onChange={(e) => setFolderPath(e.target.value)}
+                />
+                <button type="button" className="btn-ghost" disabled={!!busy} onClick={() => void readLocalPaths(folderPath.split(/\r?\n/))}>
+                  경로에서 읽기
+                </button>
+              </div>
+            )}
             <div
               data-testid="source-drop"
               className={`mt-3 rounded-lg border border-dashed px-4 py-8 text-center text-sm ${over ? "border-accent bg-blue-50 text-foreground" : "border-border text-muted-foreground"}`}
@@ -462,10 +530,10 @@ export default function SourceWizard() {
                 if (!text.trim()) return;
                 e.preventDefault();
                 setPaste((prev) => (prev ? `${prev}\n${text}` : text));
-                setFolderPath((prev) => (prev ? prev : text));
+                if (showDev) setFolderPath((prev) => (prev ? prev : text));
               }}
             >
-              탐색기에서 개발 폴더를 이 칸에 놓으세요. API 폴더와 화면 폴더를 함께 놓아도 됩니다.
+              zip 파일을 이 칸에 놓으세요. (백엔드·화면 폴더를 한 번에 묶어도 됩니다)
             </div>
             {roots.length > 0 && (
               <ul className="mt-3 list-disc pl-5 text-xs text-muted-foreground">
@@ -482,7 +550,9 @@ export default function SourceWizard() {
             <div className="flex items-center gap-2 text-sm font-semibold">
               <ListTree className="h-4 w-4 text-accent" /> 또는 파일 목록 붙여넣기
             </div>
-            <p className="mt-1 text-sm text-muted-foreground">Windows: 프로젝트 폴더에서 <code className="rounded bg-muted px-1">dir /s /b</code> 결과를 붙여 넣으세요. 경로만으로도 규모를 추정합니다.</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              경로 목록만으로도 규모를 추정할 수 있습니다. Windows에서는 프로젝트 폴더에서 <code className="rounded bg-muted px-1">dir /s /b</code> 결과를 붙여 넣으세요. 일반 사용자는 위 zip 업로드를 권장합니다.
+            </p>
             <textarea className={`${inputCls} mt-3 font-mono text-xs`} value={paste} placeholder={"src/main/java/com/example/UserController.java\nsrc/main/java/com/example/User.java\n..."} onChange={(e) => setPaste(e.target.value)} />
             <button type="button" className="btn-ghost mt-3" onClick={runPaste}>
               목록으로 분석

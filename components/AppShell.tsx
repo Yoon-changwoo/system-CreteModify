@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AttributionChip } from "./AttributionMark";
@@ -16,21 +17,49 @@ const ADDON: NavItem[] = [
   { href: "/cbo", label: "SAP CBO" },
   { href: "/addon", label: "Java" },
 ];
-const EXTRA: NavItem[] = [{ href: "/usage", label: "사용량" }];
+
+export const USAGE_ADMIN_KEY = "usage-admin";
+
+function isOn(pathname: string, href: string) {
+  return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
+}
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
-  const on = item.href === "/" ? pathname === "/" : pathname === item.href || pathname.startsWith(`${item.href}/`);
+  const on = isOn(pathname, item.href);
   return (
-    <Link href={item.href} className={`rounded-md px-2.5 py-1.5 ${on ? "bg-white/15 font-medium" : "hover:bg-white/10"}`}>
+    <Link
+      href={item.href}
+      className={`inline-flex h-9 items-center rounded-md px-3 text-sm transition ${
+        on ? "bg-white font-semibold text-[#12355b] shadow-sm" : "text-white/90 hover:bg-white/15"
+      }`}
+    >
       {item.label}
     </Link>
   );
 }
 
-function NavGroup({ label, items, pathname }: { label: string; items: NavItem[]; pathname: string }) {
+function NavGroup({
+  label,
+  href,
+  items,
+  pathname,
+}: {
+  label: string;
+  href: string;
+  items: NavItem[];
+  pathname: string;
+}) {
+  const active = items.some((i) => isOn(pathname, i.href));
   return (
-    <div className="flex flex-wrap items-center gap-0.5 rounded-lg bg-white/5 px-1.5 py-1">
-      <span className="px-2 text-[10px] font-semibold uppercase tracking-wide text-white/45">{label}</span>
+    <div
+      className={`inline-flex h-9 flex-wrap items-center gap-1 rounded-lg border px-2 ${
+        active ? "border-white/35 bg-white/12" : "border-white/20 bg-white/8"
+      }`}
+    >
+      <Link href={href} className="shrink-0 rounded-md px-1.5 text-sm font-bold text-white hover:bg-white/15">
+        {label}
+      </Link>
+      <span className="mx-0.5 h-4 w-px bg-white/30" aria-hidden />
       {items.map((item) => (
         <NavLink key={item.href} item={item} pathname={pathname} />
       ))}
@@ -38,26 +67,45 @@ function NavGroup({ label, items, pathname }: { label: string; items: NavItem[];
   );
 }
 
+function SoloPill({ item, pathname }: { item: NavItem; pathname: string }) {
+  const on = isOn(pathname, item.href);
+  return (
+    <div className={`inline-flex h-9 items-center rounded-lg border px-1 ${on ? "border-white/35 bg-white/12" : "border-white/20 bg-white/8"}`}>
+      <NavLink item={item} pathname={pathname} />
+    </div>
+  );
+}
+
 export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const [showUsage, setShowUsage] = useState(false);
+
+  useEffect(() => {
+    try {
+      if (new URLSearchParams(window.location.search).get("admin") === "1") {
+        localStorage.setItem(USAGE_ADMIN_KEY, "1");
+      }
+      setShowUsage(localStorage.getItem(USAGE_ADMIN_KEY) === "1");
+    } catch {
+      setShowUsage(false);
+    }
+  }, [pathname]);
 
   return (
     <div className="min-h-screen bg-background text-foreground">
       <header className="app-header print:hidden">
-        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-3">
           <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-            <Link href="/" className="text-sm font-semibold tracking-tight md:text-base">
+            <Link href="/" className="text-base font-semibold tracking-tight md:text-lg">
               시스템별 구축견적 산정 시스템
             </Link>
             <AttributionChip />
           </div>
-          <nav className="flex flex-wrap items-center gap-2 text-sm">
-            <NavLink item={HOME} pathname={pathname} />
-            <NavGroup label="신규" items={NEW_BUILD} pathname={pathname} />
-            <NavGroup label="추가개발" items={ADDON} pathname={pathname} />
-            {EXTRA.map((item) => (
-              <NavLink key={item.href} item={item} pathname={pathname} />
-            ))}
+          <nav className="flex flex-wrap items-center gap-2">
+            <SoloPill item={HOME} pathname={pathname} />
+            <NavGroup label="신규" href="/#new" items={NEW_BUILD} pathname={pathname} />
+            <NavGroup label="추가개발" href="/#addon" items={ADDON} pathname={pathname} />
+            {showUsage && <SoloPill item={{ href: "/usage", label: "사용량" }} pathname={pathname} />}
           </nav>
         </div>
       </header>

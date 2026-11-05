@@ -18,7 +18,7 @@ export default function HomePage() {
       </header>
 
       <div className="grid gap-5 md:grid-cols-2">
-        <section className="rounded-xl border-2 border-accent/40 bg-card p-5 shadow-sm">
+        <section id="new" className="scroll-mt-24 rounded-xl border-2 border-accent/40 bg-card p-5 shadow-sm">
           <div className="flex items-center gap-2 text-accent">
             <Boxes className="h-5 w-5" />
             <span className="text-xs font-semibold">1. 신규 시스템</span>
@@ -61,7 +61,7 @@ export default function HomePage() {
           </ul>
         </section>
 
-        <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <section id="addon" className="scroll-mt-24 rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Puzzle className="h-5 w-5" />
             <span className="text-xs font-semibold">2. 추가개발</span>
