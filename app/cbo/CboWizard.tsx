@@ -18,7 +18,7 @@ import {
   type CboModule,
   type Coverage,
 } from "@/lib/cbo";
-import { Card, Chip, Question, inputCls } from "@/components/ui";
+import { Card, Chip, ChoiceTile, Question, inputCls } from "@/components/ui";
 import ResultView from "@/components/ResultView";
 import AppShell from "@/components/AppShell";
 
@@ -38,22 +38,35 @@ export default function CboWizard() {
     return { counts: c.counts, fp: calcFunctionPoints(c.counts).total };
   }, [cbo]);
 
-  const pickKind = (k: CboKind, forceFill = false) => {
+  const toggleKind = (k: CboKind) => {
     const opt = KIND_OPTIONS.find((x) => x.value === k);
     if (!opt) return;
-    const fillTitle = forceFill || !cbo.title.trim() || SAMPLE_TITLES.includes(cbo.title);
-    const fillDesc = forceFill || !cbo.description.trim() || SAMPLE_DESCS.includes(cbo.description);
+    const on = cbo.kinds.includes(k);
+    const nextKinds = on ? cbo.kinds.filter((x) => x !== k) : [...cbo.kinds, k];
+    const preset = !on ? KIND_PRESETS[k] : {};
+    const primary = KIND_OPTIONS.find((x) => x.value === (nextKinds[0] || k));
+    const fillTitle = !cbo.title.trim() || SAMPLE_TITLES.includes(cbo.title);
+    const fillDesc = !cbo.description.trim() || SAMPLE_DESCS.includes(cbo.description);
+    const joinedDesc =
+      nextKinds.length > 1
+        ? nextKinds
+            .map((id) => KIND_OPTIONS.find((x) => x.value === id)?.desc)
+            .filter(Boolean)
+            .join("\n\n")
+        : primary?.desc;
     setCbo({
-      kind: k,
-      ...KIND_PRESETS[k],
-      ...(fillTitle ? { title: opt.title } : {}),
-      ...(fillDesc ? { description: opt.desc } : {}),
+      kinds: nextKinds,
+      ...preset,
+      ...(nextKinds.includes("interface") ? { hasInterface: true } : {}),
+      ...(nextKinds.includes("batch") ? { hasBatch: true } : {}),
+      ...(fillTitle && primary ? { title: primary.title } : {}),
+      ...(fillDesc && joinedDesc ? { description: joinedDesc } : {}),
     });
   };
 
   const pickModule = (m: CboModule) => setCbo({ module: m });
-  const selected = KIND_OPTIONS.find((k) => k.value === cbo.kind);
-  const canNext = cbo.module !== "" && (cbo.kind !== "" || cbo.description.trim().length > 0);
+  const selected = KIND_OPTIONS.find((k) => k.value === cbo.kinds[0]);
+  const canNext = cbo.module !== "" && (cbo.kinds.length > 0 || cbo.description.trim().length > 0);
   const steps = ["1. 범위", "2. 규모", "3. 결과"];
 
   return (
@@ -85,45 +98,59 @@ export default function CboWizard() {
             <p className="mt-1 text-sm text-muted-foreground">회사 표준 모듈 기준으로 고르세요.</p>
             <div className="choice-grid mt-4">
               {MODULE_OPTIONS.map((m) => (
-                <button
+                <ChoiceTile
                   key={m.value}
-                  type="button"
+                  selected={cbo.module === m.value}
                   onClick={() => pickModule(m.value)}
-                  className={`rounded-lg border p-4 text-left transition ${cbo.module === m.value ? "border-accent bg-blue-50" : "border-border bg-white hover:border-accent/50"}`}
-                >
-                  <div className="text-sm font-medium">{m.label}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">예: {m.example}</div>
-                </button>
+                  title={m.label}
+                  subtitle={`예: ${m.example}`}
+                />
               ))}
             </div>
           </Card>
 
           <Card>
-            <h2 className="text-base font-semibold">2. CBO 유형을 고르세요</h2>
-            <p className="mt-1 text-sm text-muted-foreground">유형을 고르면 이름·설명이 채워집니다. 여러 종류를 한 요청에 넣으면 설명에 나열하세요.</p>
+            <h2 className="text-base font-semibold">2. CBO 유형을 고르세요 (복수 선택)</h2>
+            <p className="mt-1 text-sm text-muted-foreground">여러 유형을 함께 고를 수 있습니다. 고르면 이름·설명이 채워집니다.</p>
             <div className="choice-grid mt-4">
               {KIND_OPTIONS.map((k) => (
-                <button
+                <ChoiceTile
                   key={k.value}
-                  type="button"
-                  onClick={() => pickKind(k.value)}
-                  className={`rounded-lg border p-4 text-left transition ${cbo.kind === k.value ? "border-accent bg-blue-50" : "border-border bg-white hover:border-accent/50"}`}
-                >
-                  <div className="text-sm font-medium">{k.label}</div>
-                  <div className="mt-1 text-xs text-muted-foreground">예: {k.example}</div>
-                </button>
+                  selected={cbo.kinds.includes(k.value)}
+                  onClick={() => toggleKind(k.value)}
+                  title={k.label}
+                  subtitle={`예: ${k.example}`}
+                />
               ))}
             </div>
             <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">
-              <button type="button" className="btn-ghost py-1.5 text-xs" onClick={() => { pickModule("scm"); pickKind("report", true); }}>
-                <Lightbulb className="h-3.5 w-3.5" /> SCM 리포트 예시
-              </button>
-              <button type="button" className="btn-ghost py-1.5 text-xs" onClick={() => { pickModule("erp"); pickKind("enhancement", true); }}>
-                <Lightbulb className="h-3.5 w-3.5" /> ERP BADI 예시
-              </button>
-              <button type="button" className="btn-ghost py-1.5 text-xs" onClick={() => { pickModule("fcm"); pickKind("batch", true); }}>
-                <Lightbulb className="h-3.5 w-3.5" /> FCM 배치 예시
-              </button>
+              {(
+                [
+                  ["scm", "report", "SCM 리포트 예시"],
+                  ["erp", "enhancement", "ERP BADI 예시"],
+                  ["fcm", "batch", "FCM 배치 예시"],
+                ] as const
+              ).map(([module, kind, label]) => {
+                const opt = KIND_OPTIONS.find((x) => x.value === kind)!;
+                return (
+                  <button
+                    key={kind}
+                    type="button"
+                    className="btn-ghost py-1.5 text-xs"
+                    onClick={() =>
+                      setCbo({
+                        module,
+                        kinds: [kind],
+                        ...KIND_PRESETS[kind],
+                        title: opt.title,
+                        description: opt.desc,
+                      })
+                    }
+                  >
+                    <Lightbulb className="h-3.5 w-3.5" /> {label}
+                  </button>
+                );
+              })}
             </div>
           </Card>
 

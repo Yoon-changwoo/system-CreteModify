@@ -6,7 +6,7 @@
 
 import { createHash } from "crypto";
 
-export type UsageChannel = "easy" | "cbo" | "expert" | "source";
+export type UsageChannel = "easy" | "cbo" | "addon" | "expert" | "source";
 
 export interface UsageEvent {
   id: string;
@@ -80,10 +80,10 @@ export const NEEDED_FEATURE_OPTIONS = [
   "관리자 승인·버전 관리",
 ];
 
-/** 제출하지 않은 가장 낮은 마일스톤 */
+/** 정확히 10·50·100건에 도달한 순간에만, 아직 제출하지 않은 마일스톤 */
 export function pendingSurveyMilestone(count: number, done: SurveyMilestone[]): SurveyMilestone | null {
   for (const m of SURVEY_MILESTONES) {
-    if (count >= m && !done.includes(m)) return m;
+    if (count === m && !done.includes(m)) return m;
   }
   return null;
 }
@@ -91,6 +91,7 @@ export function pendingSurveyMilestone(count: number, done: SurveyMilestone[]): 
 export const CHANNEL_LABEL: Record<UsageChannel, string> = {
   easy: "신규·현업",
   cbo: "SAP CBO",
+  addon: "Java 추가",
   expert: "신규·IT",
   source: "소스 분석",
 };

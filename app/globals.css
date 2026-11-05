@@ -27,7 +27,7 @@ a {
   text-decoration: none;
 }
 
-input:not([type="file"]),
+input:not([type="file"]):not([type="checkbox"]):not([type="radio"]),
 textarea,
 select {
   display: block;

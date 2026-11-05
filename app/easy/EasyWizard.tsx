@@ -29,7 +29,7 @@ import {
   type EasyInput,
   type SystemKind,
 } from "@/lib/easy";
-import { Card, Chip, Question, inputCls } from "@/components/ui";
+import { Card, Chip, ChoiceTile, Question, inputCls } from "@/components/ui";
 import ResultView from "@/components/ResultView";
 import AppShell from "@/components/AppShell";
 
@@ -65,15 +65,13 @@ function StepDescribe({ easy, setEasy, onNext }: { easy: EasyInput; setEasy: (p:
         <p className="mt-1 text-sm text-muted-foreground">유형을 고르면 시스템 이름과 기본 설명이 채워집니다. 다음에서 원하는 기능을 더 적을 수 있습니다.</p>
         <div className="choice-grid mt-4">
           {KIND_OPTIONS.map((k) => (
-            <button
+            <ChoiceTile
               key={k.value}
-              type="button"
+              selected={easy.kind === k.value}
               onClick={() => pickKind(k.value)}
-              className={`rounded-lg border p-4 text-left transition ${easy.kind === k.value ? "border-accent bg-blue-50" : "border-border bg-white hover:border-accent/50"}`}
-            >
-              <div className="text-sm font-medium">{k.label}</div>
-              <div className="mt-1 text-xs text-muted-foreground">예: {k.example}</div>
-            </button>
+              title={k.label}
+              subtitle={`예: ${k.example}`}
+            />
           ))}
         </div>
         <div className="mt-3 flex flex-wrap gap-2 text-xs text-muted-foreground">

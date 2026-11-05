@@ -6,7 +6,7 @@ export default function SourcesPanel({ compact = false }: { compact?: boolean })
       <div className="flex flex-wrap items-end justify-between gap-2">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-accent">산정 근거 · 출처 (시장가 비교용)</p>
-          <h3 className="mt-1 text-base font-bold">세 기준을 나란히 두고 계열사 제안가가 어디에 있는지 봅니다</h3>
+          <h3 className="mt-1 text-base font-bold">세 기준을 나란히 두고 이노플 제안가격이 어디에 있는지 봅니다</h3>
         </div>
         <p className="max-w-md text-xs text-muted-foreground">{STACK_NOTE}</p>
       </div>

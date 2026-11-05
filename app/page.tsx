@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, Boxes, FolderSearch, MessageCircleQuestion, Puzzle, SlidersHorizontal } from "lucide-react";
+import { ArrowRight, Boxes, Code2, FolderSearch, MessageCircleQuestion, Puzzle, SlidersHorizontal } from "lucide-react";
 import { RATE_YEAR } from "@/lib/estimate";
 import AppShell from "@/components/AppShell";
 import SourcesPanel from "@/components/SourcesPanel";
@@ -10,9 +10,10 @@ export default function HomePage() {
       <header className="mb-8">
         <h1 className="text-2xl font-bold md:text-3xl">시스템별 구축견적 산정 시스템</h1>
         <p className="mt-2 max-w-3xl text-sm text-muted-foreground">
-          회사 SAP 환경(ERP·SCM·FCM)에 맞춰 {RATE_YEAR}년 국내 공공 표준과 민간 SI 시세로 개발 공수를 가늠합니다. 먼저{" "}
+          {RATE_YEAR}년 국내 공공 표준과 민간 SI 시세로 개발 공수를 가늠합니다.{" "}
           <strong className="font-semibold text-foreground">신규 구축</strong>인지,{" "}
-          <strong className="font-semibold text-foreground">기존 SAP에 CBO 추가</strong>인지 고르세요. 보안·인프라·라이선스는 제외합니다.
+          <strong className="font-semibold text-foreground">기존 시스템 추가개발</strong>
+          (SAP CBO / Java+Postgre)인지 고르세요. 보안·인프라·라이선스는 제외합니다.
         </p>
       </header>
 
@@ -63,16 +64,34 @@ export default function HomePage() {
         <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
           <div className="flex items-center gap-2 text-muted-foreground">
             <Puzzle className="h-5 w-5" />
-            <span className="text-xs font-semibold">2. SAP CBO 추가개발</span>
+            <span className="text-xs font-semibold">2. 추가개발</span>
           </div>
-          <h2 className="mt-3 text-lg font-semibold">기존 SAP에 업무 얹기</h2>
+          <h2 className="mt-3 text-lg font-semibold">기존 시스템에 업무 얹기</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            운영 중인 ERP·SCM·FCM 위에 리포트·화면·연계·BADI·배치 등 CBO를 붙일 때 씁니다. 스택은 SAP ABAP 기준으로 산정합니다.
+            운영 중인 SAP 또는 Java+PostgreSQL 위에 화면·리포트·연계·배치 등을 붙일 때 씁니다. IT·개발 입력이라 커버리지는 기본 100%입니다.
           </p>
-          <Link href="/cbo" className="btn-primary mt-5 inline-flex">
-            CBO 공수 산정 시작 <ArrowRight className="h-4 w-4" />
-          </Link>
-          <p className="mt-3 text-xs text-muted-foreground">예: 재고 ALV, WMS IDoc, 구매오더 BADI, 자금 배치</p>
+          <ul className="mt-4 space-y-2">
+            <li>
+              <Link href="/cbo" className="group flex items-start gap-2 rounded-lg border border-border px-3 py-2.5 hover:border-accent">
+                <Puzzle className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <span>
+                  <span className="block text-sm font-medium">SAP CBO</span>
+                  <span className="text-xs text-muted-foreground">ALV·BADI·IDoc·배치 · ABAP</span>
+                </span>
+                <ArrowRight className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-accent" />
+              </Link>
+            </li>
+            <li>
+              <Link href="/addon" className="group flex items-start gap-2 rounded-lg border border-border px-3 py-2.5 hover:border-accent">
+                <Code2 className="mt-0.5 h-4 w-4 shrink-0 text-accent" />
+                <span>
+                  <span className="block text-sm font-medium">Java + PostgreSQL</span>
+                  <span className="text-xs text-muted-foreground">화면·API·연계·배치·스키마</span>
+                </span>
+                <ArrowRight className="ml-auto mt-0.5 h-4 w-4 shrink-0 text-muted-foreground group-hover:text-accent" />
+              </Link>
+            </li>
+          </ul>
         </section>
       </div>
 

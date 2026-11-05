@@ -128,7 +128,7 @@ export interface EstimateInput {
   profitRate: number; // 0 ~ 0.25
   productivity: number; // FP / M/M
   vendorOverhead: number; // 민간 수행사 관리비·이윤 비율
-  affiliateQuote: number; // 계열사 제안가(원, VAT 별도). 0이면 미입력
+  affiliateQuote: number; // 이노플 제안가격(원, VAT 별도). 0이면 미입력 · 결과 화면에서 민간 SI 시세 75%로 기본 채움
   /**
    * 입력된 기능이 전체 대비 몇 %인가.
    * 현업 기본은 큰 그림 0.6, 주요 기능 위주는 0.7. 1이면 보정 없음.
@@ -653,20 +653,12 @@ export type EstimateResult = ReturnType<typeof estimate>;
 /* 표시용 유틸                                                           */
 /* ------------------------------------------------------------------ */
 
-/** 원 → "1억 2,345만 원" 형식 */
+/** 원 → "93,840,000원" (천 단위 콤마) */
 export function fmtKRW(won: number): string {
   if (!isFinite(won)) return "-";
   const n = Math.round(won);
   if (n === 0) return "0원";
-  const sign = n < 0 ? "-" : "";
-  const abs = Math.abs(n);
-  const eok = Math.floor(abs / 100_000_000);
-  const man = Math.round((abs % 100_000_000) / 10_000);
-  if (eok > 0) {
-    return man > 0 ? `${sign}${eok}억 ${man.toLocaleString()}만 원` : `${sign}${eok}억 원`;
-  }
-  if (man > 0) return `${sign}${man.toLocaleString()}만 원`;
-  return `${sign}${abs.toLocaleString()}원`;
+  return `${n.toLocaleString("ko-KR")}원`;
 }
 
 export function fmtNum(n: number, digits = 1): string {

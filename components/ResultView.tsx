@@ -21,7 +21,7 @@ import {
   type Stack,
 } from "@/lib/estimate";
 import type { SurveyMilestone, UsageChannel } from "@/lib/usage";
-import { Card, Field, NumberInput, Stat } from "./ui";
+import { Card, Field, MoneyInput, NumberInput, Stat } from "./ui";
 import SourcesPanel from "./SourcesPanel";
 import SurveyModal from "./SurveyModal";
 
@@ -40,7 +40,9 @@ export function buildSummary(input: EstimateInput, r: EstimateResult, assumption
     `② KOSA ${RATE_YEAR}년 SW기술자 평균임금 × 공수: 원가(마진 없음) ${fmtKRW(r.kosa.direct)} / 제경비·기술료 포함 ${fmtKRW(r.kosa.publicTotal)}`,
     `③ 민간 SI 시세 × 공수: ${fmtKRW(r.market.quoteLow)} ~ ${fmtKRW(r.market.quoteHigh)} (수행사 관리비·이윤 ${fmtPct(input.vendorOverhead)} 포함)`,
     `→ 합리적 범위: ${fmtKRW(r.rangeLow)} ~ ${fmtKRW(r.rangeHigh)}`,
-    input.affiliateQuote > 0 ? `계열사 제안가: ${fmtKRW(input.affiliateQuote)} (공공 표준 대비 ${fmtPct(1 - input.affiliateQuote / r.fpMethod.total)} 절감)` : "",
+    input.affiliateQuote > 0
+      ? `이노플 제안가격: ${fmtKRW(input.affiliateQuote)} (공공 표준 대비 ${fmtPct(1 - input.affiliateQuote / r.fpMethod.total)} · 민간 SI 시세 대비 ${fmtPct(1 - input.affiliateQuote / r.market.quoteMid)})`
+      : "",
     "",
     `클라우드 인프라(별도, 개인정보 미포함 가정): 월 ${fmtKRW(r.infra.monthlyLow)} ~ ${fmtKRW(r.infra.monthlyHigh)} (${r.infra.tier}형)`,
     `연간 유지보수 참고치: ${fmtKRW(r.maintenanceYearLow)} ~ ${fmtKRW(r.maintenanceYearHigh)} (구축비의 12~15%)`,
@@ -70,7 +72,17 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
   const [copied, setCopied] = useState(false);
   const [showDetail, setShowDetail] = useState(false);
   const [survey, setSurvey] = useState<{ milestone: SurveyMilestone; count: number } | null>(null);
+  const [quoteTouched, setQuoteTouched] = useState(false);
   const grades = r.stack === "sap" ? MARKET_GRADE_SAP : MARKET_GRADE;
+
+  /** 이노플 제안가 기본값 = 민간 SI 시세(중간값)의 75% */
+  useEffect(() => {
+    if (quoteTouched) return;
+    const def = Math.round(r.market.quoteMid * 0.75);
+    if (def > 0 && input.affiliateQuote !== def) {
+      setInput({ affiliateQuote: def });
+    }
+  }, [r.market.quoteMid, quoteTouched, input.affiliateQuote, setInput]);
 
   useEffect(() => {
     if (!channel) return;
@@ -96,8 +108,8 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
         const data = (await res.json()) as { count?: number; pendingSurvey?: SurveyMilestone | null };
         if (!data.pendingSurvey || typeof data.count !== "number") return;
         try {
-          const skip = sessionStorage.getItem(`survey-skip:${data.pendingSurvey}`);
-          if (skip) return;
+          if (localStorage.getItem(`survey-done:${data.pendingSurvey}`) === "1") return;
+          if (sessionStorage.getItem(`survey-skip:${data.pendingSurvey}`)) return;
         } catch {
           /* private mode */
         }
@@ -119,7 +131,7 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
   };
 
   const saving = input.affiliateQuote > 0 ? 1 - input.affiliateQuote / r.fpMethod.total : null;
-  const savingVsMarketMid = input.affiliateQuote > 0 ? 1 - input.affiliateQuote / r.market.quoteMid : null;
+  const savingVsMarket = input.affiliateQuote > 0 ? 1 - input.affiliateQuote / r.market.quoteMid : null;
 
   return (
     <div className="space-y-6">
@@ -129,13 +141,20 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
           count={survey.count}
           onClose={() => {
             try {
-              sessionStorage.setItem(`survey-skip:${survey.milestone}`, "1");
+              localStorage.setItem(`survey-done:${survey.milestone}`, "1");
             } catch {
               /* private mode */
             }
             setSurvey(null);
           }}
-          onSubmitted={() => setSurvey(null)}
+          onSubmitted={() => {
+            try {
+              localStorage.setItem(`survey-done:${survey.milestone}`, "1");
+            } catch {
+              /* private mode */
+            }
+            setSurvey(null);
+          }}
         />
       )}
       <Card>
@@ -295,19 +314,25 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
       </div>
 
       <Card>
-        <h3 className="text-sm font-semibold">계열사 제안가와 비교</h3>
+        <h3 className="text-sm font-semibold">이노플 제안가격과 비교</h3>
         <div className="mt-3 grid gap-4 md:grid-cols-[1fr_2fr]">
-          <Field label="계열사(IT 자회사) 제안가 (원, VAT 별도)" hint="견적 금액을 입력하면 절감률을 계산합니다.">
-            <NumberInput value={input.affiliateQuote} step={1_000_000} onChange={(v) => setInput({ affiliateQuote: v })} />
+          <Field label="이노플 제안가격 (원, VAT 별도)" hint="최초 표기값(기본값)은 민간 SI 시세의 75%가 표기되며, 수정 가능합니다.">
+            <MoneyInput
+              value={input.affiliateQuote}
+              onChange={(v) => {
+                setQuoteTouched(true);
+                setInput({ affiliateQuote: v });
+              }}
+            />
           </Field>
-          {saving !== null && savingVsMarketMid !== null ? (
+          {saving !== null && savingVsMarket !== null ? (
             <div className="grid gap-3 sm:grid-cols-3">
-              <Stat label="제안가" value={fmtKRW(input.affiliateQuote)} />
+              <Stat label="이노플 제안가격" value={fmtKRW(input.affiliateQuote)} />
               <Stat label="공공 표준 대비" value={fmtPct(saving)} sub={saving >= 0 ? "절감" : "초과"} highlight={saving >= 0} />
-              <Stat label="시장 중간값 대비" value={fmtPct(savingVsMarketMid)} sub={savingVsMarketMid >= 0 ? "절감" : "초과"} highlight={savingVsMarketMid >= 0} />
+              <Stat label="민간 SI 시세 대비" value={fmtPct(savingVsMarket)} sub={savingVsMarket >= 0 ? "절감" : "초과"} highlight={savingVsMarket >= 0} />
             </div>
           ) : (
-            <div className="flex items-center text-sm text-muted-foreground">제안가를 입력하면 공공 표준·시장 중간값 대비 절감률이 표시됩니다.</div>
+            <div className="flex items-center text-sm text-muted-foreground">제안가격을 입력하면 공공 표준·민간 SI 시세 대비 절감률이 표시됩니다.</div>
           )}
         </div>
         <PositionBar r={r} quote={input.affiliateQuote} />
@@ -429,7 +454,7 @@ export default function ResultView({ input, setInput, onBack, onReset, assumptio
         <p className="font-medium text-foreground">읽는 법과 한계</p>
         <ul className="mt-2 list-disc space-y-1 pl-5">
           <li>모든 금액은 부가세 별도, 보안 솔루션·인프라 구축·상용 라이선스·데이터 이관 비용은 제외한 <b>순수 개발 공수</b>입니다.</li>
-          <li>①은 공공기관 예정가격 산식이라 민간 외주보다 높게 나오는 것이 정상입니다. 계열사 제안가가 ①보다 낮고 ③ 범위 안에 있으면 시장 대비 합리적이라고 설명할 수 있습니다.</li>
+          <li>①은 공공기관 예정가격 산식이라 민간 외주보다 높게 나오는 것이 정상입니다. 이노플 제안가격이 ①보다 낮고 ③ 민간 SI 시세 구간 안에 있으면 시장 대비 합리적이라고 설명할 수 있습니다.</li>
           <li>②의 큰 금액은 KOSA 공표 임금 × 공수입니다. 원가이고 마진이 없습니다. 프리랜서 수령액(③)과 기준이 다르므로 함께 보는 참고치입니다.</li>
           <li>기능 수를 요구사항 정의 단계에서 다시 세면 결과가 ±30% 이상 달라질 수 있습니다.</li>
           <li>연간 유지보수 참고치: 구축비의 12~15% → {fmtKRW(r.maintenanceYearLow)} ~ {fmtKRW(r.maintenanceYearHigh)}.</li>
@@ -465,7 +490,7 @@ function PositionBar({ r, quote }: { r: EstimateResult; quote: number }) {
         {marks.map((m) => (
           <div key={m.label} className={`absolute top-1/2 h-4 w-0.5 -translate-y-1/2 ${m.cls}`} style={{ left: pos(m.v) }} title={`${m.label} ${fmtKRW(m.v)}`} />
         ))}
-        {quote > 0 && <div className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-accent" style={{ left: pos(quote) }} title={`계열사 제안가 ${fmtKRW(quote)}`} />}
+        {quote > 0 && <div className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-accent" style={{ left: pos(quote) }} title={`이노플 제안가격 ${fmtKRW(quote)}`} />}
       </div>
       <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
         {marks.map((m) => (
@@ -477,10 +502,10 @@ function PositionBar({ r, quote }: { r: EstimateResult; quote: number }) {
         {quote > 0 && (
           <span>
             <span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent align-middle" />
-            계열사 제안가 {fmtKRW(quote)}
+            이노플 제안가격 {fmtKRW(quote)}
           </span>
         )}
-        <span><span className="mr-1 inline-block h-2 w-2 rounded-sm bg-accent/40 align-middle" />민간 시장 견적 구간</span>
+        <span><span className="mr-1 inline-block h-2 w-2 rounded-sm bg-accent/40 align-middle" />민간 SI 시세 구간</span>
       </div>
     </div>
   );

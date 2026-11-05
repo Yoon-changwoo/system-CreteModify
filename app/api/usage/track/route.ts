@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { clientIpFromHeaders, maskIp, newEventId, visitorKeyFromIp, type UsageChannel } from "@/lib/usage";
 import { appendUsage } from "@/lib/usageStore";
 
-const CHANNELS: UsageChannel[] = ["easy", "cbo", "expert", "source"];
+const CHANNELS: UsageChannel[] = ["easy", "cbo", "addon", "expert", "source"];
 
 export async function POST(req: Request) {
   let body: {

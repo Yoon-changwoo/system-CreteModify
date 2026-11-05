@@ -92,7 +92,8 @@ export interface CboInput {
   title: string;
   description: string;
   module: CboModule | "";
-  kind: CboKind | "";
+  /** CBO 유형 — 복수 선택 */
+  kinds: CboKind[];
   complexity: CboComplexity;
   /** 이번 요청에 포함된 CBO·오브젝트 대략 개수 */
   objectCount: number;
@@ -107,7 +108,7 @@ export const DEFAULT_CBO: CboInput = {
   title: "",
   description: "",
   module: "",
-  kind: "",
+  kinds: [],
   complexity: "mid",
   objectCount: 3,
   hasInterface: false,
@@ -157,13 +158,22 @@ function scale(n: number, mul: number) {
 }
 
 export function toEstimateInput(c: CboInput): CboConversion {
-  const kind = (c.kind || "report") as CboKind;
-  const base = KIND_BASE[kind];
+  const kinds = c.kinds.length > 0 ? c.kinds : (["report"] as CboKind[]);
+  const base: FunctionCounts = { ilf: 0, eif: 0, ei: 0, eo: 0, eq: 0 };
+  for (const k of kinds) {
+    const b = KIND_BASE[k];
+    base.ilf += b.ilf;
+    base.eif += b.eif;
+    base.ei += b.ei;
+    base.eo += b.eo;
+    base.eq += b.eq;
+  }
+  const multiDamp = kinds.length <= 1 ? 1 : 0.55 + 0.45 / kinds.length;
   const cx = CX[c.complexity];
   const units = Math.max(1, Math.min(30, c.objectCount || 1));
   /** 오브젝트 1개를 기준 단위로 보고, 개수에 따라 완만히 증가 */
   const unitMul = 0.55 + units * 0.22;
-  const mul = cx.mul * unitMul;
+  const mul = cx.mul * unitMul * multiDamp;
 
   let counts: FunctionCounts = {
     ilf: scale(base.ilf, mul),
@@ -173,17 +183,19 @@ export function toEstimateInput(c: CboInput): CboConversion {
     eq: scale(base.eq, mul),
   };
 
-  if (c.hasInterface && kind !== "interface") {
+  const hasKind = (k: CboKind) => kinds.includes(k);
+  if (c.hasInterface && !hasKind("interface")) {
     counts = { ...counts, eif: counts.eif + 2, ei: counts.ei + 2, eo: counts.eo + 2 };
   }
   if (c.hasAuth) counts = { ...counts, eq: counts.eq + 1, ei: counts.ei + 1 };
-  if (c.hasBatch && kind !== "batch") counts = { ...counts, ei: counts.ei + 2, eo: counts.eo + 1, ilf: counts.ilf + 1 };
+  if (c.hasBatch && !hasKind("batch")) counts = { ...counts, ei: counts.ei + 2, eo: counts.eo + 1, ilf: counts.ilf + 1 };
 
   const assumptions: string[] = [];
   const mod = c.module ? labelOf(MODULE_OPTIONS, c.module) : "SAP";
-  assumptions.push(`${mod} 기준 CBO·추가개발: ${labelOf(KIND_OPTIONS, kind)} × 약 ${units}개 · 복잡도 ${labelOf(COMPLEXITY_OPTIONS, c.complexity)}`);
+  const kindLabels = kinds.map((k) => labelOf(KIND_OPTIONS, k)).join(" · ");
+  assumptions.push(`${mod} 기준 CBO·추가개발: ${kindLabels} × 약 ${units}개 · 복잡도 ${labelOf(COMPLEXITY_OPTIONS, c.complexity)}`);
   assumptions.push(
-    `기능점수 환산 ILF ${counts.ilf} / EIF ${counts.eif} / EI ${counts.ei} / EO ${counts.eo} / EQ ${counts.eq} (오브젝트 수·복잡도로 보정)`,
+    `기능점수 환산 ILF ${counts.ilf} / EIF ${counts.eif} / EI ${counts.ei} / EO ${counts.eo} / EQ ${counts.eq} (유형·오브젝트 수·복잡도로 보정)`,
   );
   if (c.hasInterface) assumptions.push("외부 시스템 연계(IDoc·RFC·API) 포함 → 매핑·모니터링·재처리 공수 반영");
   if (c.hasAuth) assumptions.push("권한·조직(플랜트·회사코드) 체크 포함");
@@ -191,7 +203,7 @@ export function toEstimateInput(c: CboInput): CboConversion {
   if (c.mobile) assumptions.push("모바일·현장 단말 사용 → UI·권한 테스트 비중 상향");
   assumptions.push("기존 SAP 표준·커스텀 위에 얹는 개발로 보고, 구현 스택은 SAP ABAP + HANA로 산정합니다. 라이선스·BASIS·인프라 구축비는 제외합니다.");
 
-  const productivity = Math.max(10, (DEFAULT_INPUT.productivity - 6) - cx.prodCut);
+  const productivity = Math.max(10, DEFAULT_INPUT.productivity - 6 - cx.prodCut);
   if (productivity < DEFAULT_INPUT.productivity) {
     assumptions.push(`SAP CBO는 전송·테스트·표준 영향 분석이 커서 생산성 가정을 ${DEFAULT_INPUT.productivity} → ${productivity} FP/M/M으로 둡니다`);
   }
@@ -207,13 +219,13 @@ export function toEstimateInput(c: CboInput): CboConversion {
     description: c.description,
     mode: "detail",
     counts,
-    externalLinks: c.hasInterface || kind === "interface" ? Math.max(1, Math.round(units / 2)) : 0,
+    externalLinks: c.hasInterface || hasKind("interface") ? Math.max(1, Math.round(units / 2)) : 0,
     perfLevel: cx.perf,
     envLevel: 2,
     secLevel: c.hasAuth ? 2 : 1,
     mobile: c.mobile,
     concurrentUsers: 80,
-    dataGb: kind === "batch" || c.complexity === "heavy" ? 200 : 50,
+    dataGb: hasKind("batch") || c.complexity === "heavy" ? 200 : 50,
     productivity,
     inputCoverage: c.coverage,
     stack: "sap",
